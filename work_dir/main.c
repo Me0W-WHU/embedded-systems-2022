@@ -24,6 +24,7 @@ uint8_t flag1 = 0; //中断标志位，每次按键产生一次中断，并开�
 uint8_t Rx2_Buffer[8] = {0};
 uint8_t Tx1_Buffer[8] = {0};
 uint8_t Rx1_Buffer[1] = {0};
+double default_threshold = 36.5;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 
@@ -70,37 +71,36 @@ int main(void) {
 
     /* Infinite loop */
     /* USER CODE BEGIN WHILE */
-    while (1) {
-        /* USER CODE END WHILE */
-
-        /* USER CODE BEGIN 3 */
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);   //´ò¿ª·äÃùÆ÷
-        HAL_Delay(2);                                         // 50HZÆµÂÊ
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); //¹Ø±Õ·äÃùÆ÷
-        HAL_Delay(2);                                         // 50HZÆµÂÊ
-    }
-    while (1) {
-        /* USER CODE END WHILE */
-
-        /* USER CODE BEGIN 3 */
-        if (flag1 == 1) {
-            flag1 = 0;
-            I2C_ZLG7290_Read(&hi2c1, 0x71, 0x01, Rx1_Buffer, 1); //读键值
-            printf("\n\r按键键值 = %#x\r\n", Rx1_Buffer[0]);     //想串口发送键值
-            switch_key();                                        //扫描键值，写标志位
-            I2C_ZLG7290_Read(&hi2c1, 0x71, 0x10, Rx2_Buffer, 8); //读8位数码管
-            switch_flag();                                       //扫描到相应的按键并且向数码管写进数值
-        }
-    }
+    double nowTemp = -1;
     while (1) {
         if ((Temp = LM75GetTempReg()) != EVL_ER) {
-            LM75GetTempValue(Temp);
+            nowTemp = LM75GetTempValue(Temp);
         }
-        HAL_Delay(1000);
-        /* USER CODE END WHILE */
+        if (nowTemp > default_threshold) {
+            HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);   // 打开蜂鸣器
+            HAL_Delay(2);                                         // 50HZ 频率
+            HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_RESET); // 关闭蜂鸣器
+            HAL_Delay(2);                                         // 50HZ 频率
+        }
 
-        /* USER CODE BEGIN 3 */
+        while (flag1 == 1) {
+            double temp = 0;
+            I2C_ZLG7290_Read(&hi2c1, 0x71, 0x01, Rx1_Buffer, 1);      // 读键值
+            printf("\n\r按键键值 = %#x\r\n", Rx1_Buffer[0]);            // 向串口发送键值
+            if (Rx1_Buffer[0] == '#') {
+                default_threshold = temp;
+                flag1 = 0;
+                break;
+            } else {
+                switch_key();                                        // 扫描键值，写标志位
+                I2C_ZLG7290_Read(&hi2c1, 0x71, 0x10, Rx2_Buffer, 8); // 读 8 位数码管
+                switch_flag();                                       // 扫描到相应的按键并且向数码管写进数值
+                temp = temp * 10 + Rx2_Buffer[0];
+            }
+        }
     }
+
+    HAL_Delay(1000);
     /* USER CODE END 3 */
 }
 
